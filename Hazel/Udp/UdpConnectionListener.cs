@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -32,7 +33,13 @@ namespace Impostor.Hazel.Udp
         private readonly ConcurrentDictionary<EndPoint, UdpServerConnection> _allConnections;
         private readonly CancellationTokenSource _stoppingCts;
         private readonly UdpConnectionRateLimit _connectionRateLimit;
+        private readonly HashSet<IPAddress> _uniqueIPs = new();
+        private readonly ConcurrentDictionary<EndPoint, (int packetCount, bool isBad)> _packetTracking = new();
         private Task _executingTask;
+        private long _bytesSent;
+        private long _bytesReceived;
+        private bool _detectedBadPackets;
+        private bool _detectedLeakedConnections;
 
         /// <summary>
         ///     Creates a new UdpConnectionListener for the given <see cref="IPAddress"/>, port and <see cref="IPMode"/>.
@@ -45,6 +52,11 @@ namespace Impostor.Hazel.Udp
 
             _readerPool = readerPool;
             _socket = new UdpClient(endPoint);
+
+            _bytesSent = 0;
+            _bytesReceived = 0;
+            _detectedBadPackets = false;
+            _detectedLeakedConnections = false;
 
             try
             {
@@ -133,9 +145,19 @@ namespace Impostor.Hazel.Udp
                     {
                         data = await _socket.ReceiveAsync();
 
-                        if (data.Buffer.Length == 0)
+                        Interlocked.Add(ref _bytesReceived, data.Buffer.Length);
+
+                        if (_uniqueIPs.Add(data.RemoteEndPoint.Address) && _uniqueIPs.Count > 4)
                         {
-                            Logger.Fatal("Hazel read 0 bytes from UDP server socket.");
+                            _detectedLeakedConnections = true;
+                        }
+
+                        if (data.RemoteEndPoint.Port < 1024 || data.Buffer.Length == 0)
+                        {
+                            if (data.RemoteEndPoint.Port < 1024)
+                            {
+                                _detectedBadPackets = true;
+                            }
                             continue;
                         }
                     }
@@ -164,10 +186,23 @@ namespace Impostor.Hazel.Udp
             // Get client from active clients
             if (!_allConnections.TryGetValue(data.RemoteEndPoint, out var client))
             {
-                // Check for malformed connection attempts
+                // Track packets for the remote endpoint
+                var packetInfo = _packetTracking.GetOrAdd(data.RemoteEndPoint, (0, false));
+
+                // Check if the packet is a valid hello packet
                 if (data.Buffer[0] != (byte)UdpSendOption.Hello)
                 {
-                    return;
+                    packetInfo.packetCount++;
+                    if (packetInfo.packetCount >= 4)
+                    {
+                        _detectedBadPackets = true;
+                        _packetTracking[data.RemoteEndPoint] = (packetInfo.packetCount, true);
+                    }
+                }
+                else
+                {
+                    // Reset packet count if a valid hello packet is received
+                    _packetTracking[data.RemoteEndPoint] = (0, false);
                 }
 
                 // Check rateLimit.
@@ -206,6 +241,8 @@ namespace Impostor.Hazel.Udp
             try
             {
                 await _socket.SendAsync(bytes, length, endPoint);
+
+                Interlocked.Add(ref _bytesSent, length);
             }
             catch (SocketException e)
             {
@@ -225,6 +262,11 @@ namespace Impostor.Hazel.Udp
         internal void RemoveConnectionTo(EndPoint endPoint)
         {
             this._allConnections.TryRemove(endPoint, out var conn);
+        }
+
+        public (long bytesSent, long bytesReceived, bool detectedBadPackets, bool detectedLeakedConnections) GetTrafficStatistics()
+        {
+            return (_bytesSent, _bytesReceived, _detectedBadPackets, _detectedLeakedConnections);
         }
 
         /// <inheritdoc />

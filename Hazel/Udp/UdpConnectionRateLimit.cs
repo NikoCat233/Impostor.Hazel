@@ -10,9 +10,9 @@ namespace Impostor.Hazel.Udp
     {
         private static readonly ILogger Logger = Log.ForContext<UdpConnectionRateLimit>();
 
-        // Allow burst to 5 connections.
+        // Allow burst to 3 connections.
         // Decrease by 1 every second.
-        private const int MaxConnections = 5;
+        private const int MaxConnections = 3;
         private const int FalloffMs = 1000;
 
         private readonly ConcurrentDictionary<IPAddress, int> _connectionCount;
