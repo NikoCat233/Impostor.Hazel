@@ -27,6 +27,8 @@ namespace Impostor.Hazel.Udp
 
         public delegate bool AcceptConnectionCheck(IPEndPoint endPoint, byte[] input, out byte[] response);
 
+        public bool BlockFurtherEndPoints { get; set; } = false;
+
         private readonly UdpClient _socket;
         protected readonly ObjectPool<MessageReader> _readerPool;
         private readonly Timer _reliablePacketTimer;
@@ -192,17 +194,28 @@ namespace Impostor.Hazel.Udp
                 // Check if the packet is a valid hello packet
                 if (data.Buffer[0] != (byte)UdpSendOption.Hello)
                 {
-                    packetInfo.packetCount++;
+                    if (data.Buffer[0] is not (byte)UdpSendOption.Acknowledgement and not (byte)UdpSendOption.Ping and not (byte)UdpSendOption.Disconnect and not 0)
+                    {
+                        packetInfo.packetCount++;
+                    }
+
                     if (packetInfo.packetCount >= 4)
                     {
                         _detectedBadPackets = true;
                         _packetTracking[data.RemoteEndPoint] = (packetInfo.packetCount, true);
                     }
+
+                    return;
                 }
                 else
                 {
                     // Reset packet count if a valid hello packet is received
                     _packetTracking[data.RemoteEndPoint] = (0, false);
+                }
+
+                if (BlockFurtherEndPoints)
+                {
+                    return;
                 }
 
                 // Check rateLimit.
