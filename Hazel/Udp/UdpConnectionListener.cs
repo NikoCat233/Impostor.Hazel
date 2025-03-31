@@ -40,6 +40,7 @@ namespace Impostor.Hazel.Udp
         private Task _executingTask;
         private long _bytesSent;
         private long _bytesReceived;
+        private bool _detectedAttackPort;
         private bool _detectedBadPackets;
         private bool _detectedLeakedConnections;
 
@@ -57,6 +58,7 @@ namespace Impostor.Hazel.Udp
 
             _bytesSent = 0;
             _bytesReceived = 0;
+            _detectedAttackPort = false;
             _detectedBadPackets = false;
             _detectedLeakedConnections = false;
 
@@ -154,12 +156,49 @@ namespace Impostor.Hazel.Udp
                             _detectedLeakedConnections = true;
                         }
 
-                        if (data.RemoteEndPoint.Port < 1024 || data.Buffer.Length == 0)
+                        switch (data.RemoteEndPoint.Port)
                         {
-                            if (data.RemoteEndPoint.Port < 1024)
-                            {
-                                _detectedBadPackets = true;
-                            }
+                            case 17:
+                            case 19:
+                            case 53:
+                            case 69:
+                            case 111:
+                            case 123:
+                            case 137:
+                            case 161:
+                            case 162:
+                            case 389:
+                            case 1194:
+                            case 1900:
+                            case 3283:
+                            case 3389:
+                            case 3478:
+                            case 3702:
+                            case 5683:
+                            case 5684:
+                            case 11211:
+                                if (!_detectedAttackPort)
+                                {
+                                    Logger.Warning("Port {0} get attacked by {1}", EndPoint.Port, data.RemoteEndPoint.ToString());
+                                    _detectedAttackPort = true;
+                                }
+                                continue;
+
+                            default:
+                                if (data.RemoteEndPoint.Port < 1024)
+                                {
+                                    if (!_detectedAttackPort)
+                                    {
+                                        Logger.Warning("Port {0} received reserved port packet from {1}", EndPoint.Port, data.RemoteEndPoint.ToString());
+                                        _detectedAttackPort = true;
+                                    }
+                                    continue;
+                                }
+                                break;
+                        }
+
+                        if (data.Buffer.Length == 0)
+                        {
                             continue;
                         }
                     }
@@ -277,9 +316,9 @@ namespace Impostor.Hazel.Udp
             this._allConnections.TryRemove(endPoint, out var conn);
         }
 
-        public (long bytesSent, long bytesReceived, bool detectedBadPackets, bool detectedLeakedConnections) GetTrafficStatistics()
+        public (long bytesSent, long bytesReceived, bool detectedAttackPort, bool detectedBadPackets, bool detectedLeakedConnections) GetTrafficStatistics()
         {
-            return (_bytesSent, _bytesReceived, _detectedBadPackets, _detectedLeakedConnections);
+            return (_bytesSent, _bytesReceived, _detectedAttackPort, _detectedBadPackets, _detectedLeakedConnections);
         }
 
         /// <inheritdoc />
