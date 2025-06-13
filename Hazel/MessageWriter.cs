@@ -125,6 +125,24 @@ namespace Impostor.Hazel
         }
 
         #region WriteMethods
+        public void CopyFrom(IMessageReader target)
+        {
+            int offset, length;
+            if (target.Tag == byte.MaxValue)
+            {
+                offset = target.Offset;
+                length = target.Length;
+            }
+            else
+            {
+                offset = target.Offset - 3;
+                length = target.Length + 3;
+            }
+
+            System.Buffer.BlockCopy(target.Buffer, offset, this.Buffer, this.Position, length);
+            this.Position += length;
+            if (this.Position > this.Length) this.Length = this.Position;
+        }
 
         public void Write(bool value)
         {
@@ -319,6 +337,25 @@ namespace Impostor.Hazel
         public void Write(IPAddress value)
         {
             this.Write(value.GetAddressBytes());
+        }
+
+        public void Write(IMessageWriter msg, bool includeHeader)
+        {
+            int offset = 0;
+            if (!includeHeader)
+            {
+                switch (msg.SendOption)
+                {
+                    case MessageType.Unreliable:
+                        offset = 1;
+                        break;
+                    case MessageType.Reliable:
+                        offset = 3;
+                        break;
+                }
+            }
+
+            this.Write(msg.Buffer, offset, msg.Length - offset);
         }
 
         #endregion

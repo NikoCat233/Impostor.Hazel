@@ -22,6 +22,8 @@ public interface IMessageWriter : IDisposable
     /// <returns>An array containing the data in the current writer.</returns>
     byte[] ToByteArray(bool includeHeader);
 
+    void CopyFrom(IMessageReader reader);
+
     /// <summary>
     ///     Writes a boolean to the message.
     /// </summary>
@@ -93,6 +95,8 @@ public interface IMessageWriter : IDisposable
     /// </summary>
     /// <param name="value">Value to write.</param>
     void Write(IPAddress value);
+
+    void Write(IMessageWriter msg, bool includeHeader);
 
     /// <summary>
     ///     Writes an packed int to the message.
