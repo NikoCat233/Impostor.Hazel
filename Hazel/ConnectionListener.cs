@@ -1,7 +1,7 @@
-﻿using System;
-using System.Threading.Tasks;
-using Impostor.Hazel.Abstractions;
+﻿using Impostor.Hazel.Abstractions;
 using Serilog;
+using System;
+using System.Threading.Tasks;
 
 namespace Impostor.Hazel
 {

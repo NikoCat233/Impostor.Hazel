@@ -210,7 +210,7 @@ namespace Impostor.Hazel
                 return UnreliableMessagesReceived + ReliableMessagesReceived + FragmentedMessagesReceived + AcknowledgementMessagesReceived + helloMessagesReceived;
             }
         }
-        
+
         /// <summary>
         ///     The number of unreliable messages received.
         /// </summary>

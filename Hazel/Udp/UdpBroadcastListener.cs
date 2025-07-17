@@ -89,7 +89,7 @@ namespace Impostor.Hazel.Udp
                 return;
             }
 
-            if (numBytes < 3 
+            if (numBytes < 3
                 || buffer[0] != 4 || buffer[1] != 2)
             {
                 this.StartListen();

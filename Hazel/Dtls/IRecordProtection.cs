@@ -73,11 +73,11 @@ namespace Impostor.Hazel.Dtls
         {
             switch (cipherSuite)
             {
-            case CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:
-                return new Aes128GcmRecordProtection(masterSecret, serverRandom, clientRandom);
+                case CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:
+                    return new Aes128GcmRecordProtection(masterSecret, serverRandom, clientRandom);
 
-            default:
-                return null;
+                default:
+                    return null;
             }
         }
     }

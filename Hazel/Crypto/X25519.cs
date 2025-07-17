@@ -19,7 +19,7 @@ namespace Impostor.Hazel.Crypto
             public int x5, x6, x7, x8, x9;
         };
 
-        private static readonly byte[] BasePoint = {9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        private static readonly byte[] BasePoint = { 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
         /// <summary>
         /// Performs the core x25519 function: Multiplying an EC point by a scalar value
@@ -143,35 +143,35 @@ namespace Impostor.Hazel.Crypto
                 long tmp8 = (long)bytes.ReadLittleEndian24(26) << 4;
                 long tmp9 = (long)(bytes.ReadLittleEndian24(29) & 0x007FFFFF) << 2;
 
-                long carry9 = (tmp9 + (1L<<24)) >> 25;
+                long carry9 = (tmp9 + (1L << 24)) >> 25;
                 tmp0 += carry9 * 19;
                 tmp9 -= carry9 << 25;
-                long carry1 = (tmp1 + (1L<<24)) >> 25;
+                long carry1 = (tmp1 + (1L << 24)) >> 25;
                 tmp2 += carry1;
                 tmp1 -= carry1 << 25;
-                long carry3 = (tmp3 + (1L<<24)) >> 25;
+                long carry3 = (tmp3 + (1L << 24)) >> 25;
                 tmp4 += carry3;
                 tmp3 -= carry3 << 25;
-                long carry5 = (tmp5 + (1L<<24)) >> 25;
+                long carry5 = (tmp5 + (1L << 24)) >> 25;
                 tmp6 += carry5;
                 tmp5 -= carry5 << 25;
-                long carry7 = (tmp7 + (1L<<24)) >> 25;
+                long carry7 = (tmp7 + (1L << 24)) >> 25;
                 tmp8 += carry7;
                 tmp7 -= carry7 << 25;
 
-                long carry0 = (tmp0 + (1L<<25)) >> 26;
+                long carry0 = (tmp0 + (1L << 25)) >> 26;
                 tmp1 += carry0;
                 tmp0 -= carry0 << 26;
-                long carry2 = (tmp2 + (1L<<25)) >> 26;
+                long carry2 = (tmp2 + (1L << 25)) >> 26;
                 tmp3 += carry2;
                 tmp2 -= carry2 << 26;
-                long carry4 = (tmp4 + (1L<<25)) >> 26;
+                long carry4 = (tmp4 + (1L << 25)) >> 26;
                 tmp5 += carry4;
                 tmp4 -= carry4 << 26;
-                long carry6 = (tmp6 + (1L<<25)) >> 26;
+                long carry6 = (tmp6 + (1L << 25)) >> 26;
                 tmp7 += carry6;
                 tmp6 -= carry6 << 26;
-                long carry8 = (tmp8 + (1L<<25)) >> 26;
+                long carry8 = (tmp8 + (1L << 25)) >> 26;
                 tmp9 += carry8;
                 tmp8 -= carry8 << 26;
 
@@ -241,16 +241,16 @@ namespace Impostor.Hazel.Crypto
                 int carry9 = (int)(this.x9 >> 25);
                 this.x9 = (int)((int)this.x9 - (carry9 << 25));
 
-                output[ 0] = (byte)(this.x0 >> 0);
-                output[ 1] = (byte)(this.x0 >> 8);
-                output[ 2] = (byte)(this.x0 >> 16);
-                output[ 3] = (byte)((this.x0 >> 24) | (this.x1 << 2));
-                output[ 4] = (byte)(this.x1 >> 6);
-                output[ 5] = (byte)(this.x1 >> 14);
-                output[ 6] = (byte)((this.x1 >> 22) | (this.x2 << 3));
-                output[ 7] = (byte)(this.x2 >> 5);
-                output[ 8] = (byte)(this.x2 >> 13);
-                output[ 9] = (byte)((this.x2 >> 21) | (this.x3 << 5));
+                output[0] = (byte)(this.x0 >> 0);
+                output[1] = (byte)(this.x0 >> 8);
+                output[2] = (byte)(this.x0 >> 16);
+                output[3] = (byte)((this.x0 >> 24) | (this.x1 << 2));
+                output[4] = (byte)(this.x1 >> 6);
+                output[5] = (byte)(this.x1 >> 14);
+                output[6] = (byte)((this.x1 >> 22) | (this.x2 << 3));
+                output[7] = (byte)(this.x2 >> 5);
+                output[8] = (byte)(this.x2 >> 13);
+                output[9] = (byte)((this.x2 >> 21) | (this.x3 << 5));
                 output[10] = (byte)(this.x3 >> 3);
                 output[11] = (byte)(this.x3 >> 11);
                 output[12] = (byte)((this.x3 >> 19) | (this.x4 << 6));
@@ -673,19 +673,19 @@ namespace Impostor.Hazel.Crypto
                 long h8 = (long)a.x8 * 121666L;
                 long h9 = (long)a.x9 * 121666L;
 
-                long carry9 = (h9 + (1L<<24)) >> 25;
+                long carry9 = (h9 + (1L << 24)) >> 25;
                 h0 += carry9 * 19;
                 h9 -= carry9 << 25;
-                long carry1 = (h1 + (1L<<24)) >> 25;
+                long carry1 = (h1 + (1L << 24)) >> 25;
                 h2 += carry1;
                 h1 -= carry1 << 25;
-                long carry3 = (h3 + (1L<<24)) >> 25;
+                long carry3 = (h3 + (1L << 24)) >> 25;
                 h4 += carry3;
                 h3 -= carry3 << 25;
-                long carry5 = (h5 + (1L<<24)) >> 25;
+                long carry5 = (h5 + (1L << 24)) >> 25;
                 h6 += carry5;
                 h5 -= carry5 << 25;
-                long carry7 = (h7 + (1L<<24)) >> 25;
+                long carry7 = (h7 + (1L << 24)) >> 25;
                 h8 += carry7;
                 h7 -= carry7 << 25;
 
@@ -729,7 +729,7 @@ namespace Impostor.Hazel.Crypto
                 Square(ref t1, ref t0);
                 Square(ref t1, ref t1);
 
-                FieldElement t2= new FieldElement();
+                FieldElement t2 = new FieldElement();
                 Multiply(ref t1, ref a, ref t1);
                 Multiply(ref t0, ref t0, ref t1);
                 Square(ref t2, ref t0);

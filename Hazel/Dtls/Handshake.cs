@@ -239,7 +239,7 @@ namespace Impostor.Hazel.Dtls
             bool foundNullCompressionMethod = false;
             for (int ii = 0; ii != compressionMethodsSize; ++ii)
             {
-                if (span[1+ii] == (byte)CompressionMethod.Null)
+                if (span[1 + ii] == (byte)CompressionMethod.Null)
                 {
                     foundNullCompressionMethod = true;
                     break;

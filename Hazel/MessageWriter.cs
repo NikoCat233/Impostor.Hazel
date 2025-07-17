@@ -1,8 +1,8 @@
-﻿using System;
+﻿using Impostor.Hazel.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
-using Impostor.Hazel.Abstractions;
 
 namespace Impostor.Hazel
 {
@@ -43,17 +43,17 @@ namespace Impostor.Hazel
                 switch (this.SendOption)
                 {
                     case MessageType.Reliable:
-                    {
-                        byte[] output = new byte[this.Length - 3];
-                        System.Buffer.BlockCopy(this.Buffer, 3, output, 0, this.Length - 3);
-                        return output;
-                    }
+                        {
+                            byte[] output = new byte[this.Length - 3];
+                            System.Buffer.BlockCopy(this.Buffer, 3, output, 0, this.Length - 3);
+                            return output;
+                        }
                     case MessageType.Unreliable:
-                    {
-                        byte[] output = new byte[this.Length - 1];
-                        System.Buffer.BlockCopy(this.Buffer, 1, output, 0, this.Length - 1);
-                        return output;
-                    }
+                        {
+                            byte[] output = new byte[this.Length - 1];
+                            System.Buffer.BlockCopy(this.Buffer, 1, output, 0, this.Length - 1);
+                            return output;
+                        }
                 }
             }
 

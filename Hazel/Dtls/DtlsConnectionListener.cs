@@ -1,3 +1,7 @@
+using Impostor.Hazel.Crypto;
+using Impostor.Hazel.Udp;
+using Microsoft.Extensions.ObjectPool;
+using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -8,10 +12,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using Impostor.Hazel.Crypto;
-using Impostor.Hazel.Udp;
-using Microsoft.Extensions.ObjectPool;
-using Serilog;
 
 namespace Impostor.Hazel.Dtls
 {

@@ -1,8 +1,8 @@
-﻿using System;
+﻿using Serilog;
+using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Threading;
-using Serilog;
 
 namespace Impostor.Hazel.Udp
 {

@@ -1,12 +1,12 @@
-﻿using System;
+﻿using Microsoft.Extensions.ObjectPool;
+using Serilog;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.ObjectPool;
-using Serilog;
 
 namespace Impostor.Hazel.Udp
 {

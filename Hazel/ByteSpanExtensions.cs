@@ -67,8 +67,8 @@ namespace Impostor.Hazel
         {
             uint value = 0;
             value |= (uint)input[offset + 0] << 16;
-            value |= (uint)input[offset + 1] <<  8;
-            value |= (uint)input[offset + 2] <<  0;
+            value |= (uint)input[offset + 1] << 8;
+            value |= (uint)input[offset + 2] << 0;
             return value;
         }
 
@@ -80,8 +80,8 @@ namespace Impostor.Hazel
             value |= (ulong)input[offset + 1] << 32;
             value |= (ulong)input[offset + 2] << 24;
             value |= (ulong)input[offset + 3] << 16;
-            value |= (ulong)input[offset + 4] <<  8;
-            value |= (ulong)input[offset + 5] <<  0;
+            value |= (ulong)input[offset + 4] << 8;
+            value |= (ulong)input[offset + 5] << 0;
             return value;
         }
     }

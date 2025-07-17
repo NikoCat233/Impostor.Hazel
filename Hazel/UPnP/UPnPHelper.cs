@@ -34,7 +34,7 @@ namespace Impostor.Hazel.UPnP
 
         private string serviceUrl;
         private string serviceName = "";
-        
+
         private ManualResetEvent discoveryComplete = new ManualResetEvent(false);
         private Socket socket;
 
@@ -75,7 +75,7 @@ namespace Impostor.Hazel.UPnP
             {
                 socket.BeginReceiveFrom(this.buffer, 0, this.buffer.Length, SocketFlags.None, ref ep, HandleMessage, null);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 this.logger.WriteInfo("Exception listening for UPnP: " + e.Message);
             }
@@ -313,7 +313,7 @@ namespace Impostor.Hazel.UPnP
 
         private XmlDocument SOAPRequest(string url, string soap, string function)
         {
-            string req = 
+            string req =
 "<?xml version=\"1.0\"?>" +
 "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">" +
 $"<s:Body>{soap}</s:Body>" +

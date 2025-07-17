@@ -1,8 +1,8 @@
-﻿using System;
+﻿using Impostor.Hazel.Abstractions;
+using Serilog;
+using System;
 using System.Net;
 using System.Threading.Tasks;
-using Impostor.Hazel.Abstractions;
-using Serilog;
 
 namespace Impostor.Hazel
 {
@@ -53,7 +53,7 @@ namespace Impostor.Hazel
         public int TestLagMs = -1;
         public int TestDropRate = 0;
         protected int testDropCount = 0;
-        
+
         /// <summary>
         ///     Called when the end point disconnects or an error occurs.
         /// </summary>
@@ -103,7 +103,7 @@ namespace Impostor.Hazel
             {
                 return this._state;
             }
-            
+
             protected set
             {
                 this._state = value;
@@ -113,7 +113,7 @@ namespace Impostor.Hazel
 
         protected ConnectionState _state;
         protected virtual void SetState(ConnectionState state) { }
-        
+
         /// <summary>
         ///     Constructor that initializes the ConnecitonStatistics object.
         /// </summary>
@@ -155,7 +155,7 @@ namespace Impostor.Hazel
         ///     </para>
         /// </remarks>
         public abstract ValueTask SendBytes(byte[] bytes, MessageType sendOption = MessageType.Unreliable);
-        
+
         /// <summary>
         ///     Connects the connection to a server and begins listening.
         ///     This method blocks and may thrown if there is a problem connecting.
@@ -224,7 +224,7 @@ namespace Impostor.Hazel
         /// If you only want to close it, just use Dispose.
         /// </summary>
         public abstract ValueTask Disconnect(string reason, MessageWriter writer = null);
-        
+
         /// <summary>
         ///     Disposes of this NetworkConnection.
         /// </summary>

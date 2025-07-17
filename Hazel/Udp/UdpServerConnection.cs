@@ -1,8 +1,8 @@
+using Impostor.Hazel.Abstractions;
+using Microsoft.Extensions.ObjectPool;
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using Impostor.Hazel.Abstractions;
-using Microsoft.Extensions.ObjectPool;
 
 namespace Impostor.Hazel.Udp
 {

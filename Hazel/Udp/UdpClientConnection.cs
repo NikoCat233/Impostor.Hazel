@@ -1,10 +1,10 @@
+using Impostor.Hazel.Abstractions;
+using Microsoft.Extensions.ObjectPool;
 using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Impostor.Hazel.Abstractions;
-using Microsoft.Extensions.ObjectPool;
 
 namespace Impostor.Hazel.Udp
 {
@@ -62,7 +62,7 @@ namespace Impostor.Hazel.Udp
             }
             catch { }
         }
-        
+
         protected virtual async ValueTask ResendPacketsIfNeeded()
         {
             await base.ManageReliablePackets();
@@ -105,7 +105,7 @@ namespace Impostor.Hazel.Udp
                 State = ConnectionState.NotConnected;
                 throw new HazelException("A SocketException occurred while binding to the port.", e);
             }
-            
+
             this.RestartConnection();
 
             try

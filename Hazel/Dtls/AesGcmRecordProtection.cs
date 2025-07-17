@@ -1,12 +1,12 @@
-using System.Diagnostics;
 using Impostor.Hazel.Crypto;
+using System.Diagnostics;
 
 namespace Impostor.Hazel.Dtls
 {
     /// <summary>
     /// *_AES_128_GCM_* cipher suite
     /// </summary>
-    public class Aes128GcmRecordProtection: IRecordProtection
+    public class Aes128GcmRecordProtection : IRecordProtection
     {
         private const int ImplicitNonceSize = 4;
         private const int ExplicitNonceSize = 8;

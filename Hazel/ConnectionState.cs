@@ -9,7 +9,7 @@
         ///     The Connection has either not been established yet or has been disconnected.
         /// </summary>
         NotConnected,
-        
+
         /// <summary>
         ///     The Connection is currently connecting to an endpoint.
         /// </summary>

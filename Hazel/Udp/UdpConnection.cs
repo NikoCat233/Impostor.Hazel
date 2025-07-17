@@ -1,10 +1,10 @@
+using Impostor.Hazel.Abstractions;
+using Microsoft.Extensions.ObjectPool;
+using Serilog;
 using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Impostor.Hazel.Abstractions;
-using Microsoft.Extensions.ObjectPool;
-using Serilog;
 
 namespace Impostor.Hazel.Udp
 {
@@ -202,7 +202,7 @@ namespace Impostor.Hazel.Udp
                     }
                 }
             }
-            
+
             switch (message.Buffer[0])
             {
                 //Handle reliable receives

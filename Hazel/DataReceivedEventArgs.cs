@@ -15,7 +15,7 @@ namespace Impostor.Hazel
         ///     The <see cref="SendOption"/> the data was sent with.
         /// </summary>
         public readonly MessageType Type;
-        
+
         public DataReceivedEventArgs(Connection sender, IMessageReader msg, MessageType type)
         {
             this.Sender = sender;

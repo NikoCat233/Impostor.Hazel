@@ -32,7 +32,7 @@ namespace Impostor.Hazel
         /// </summary>
         /// <returns></returns>
         private readonly Func<T> objectFactory;
-        
+
         /// <summary>
         ///     Internal constructor for our ObjectPool.
         /// </summary>
