@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Impostor.Hazel.Abstractions;
+using Microsoft.Extensions.ObjectPool;
+using System;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Impostor.Hazel.Abstractions;
-using Microsoft.Extensions.ObjectPool;
 
 namespace Impostor.Hazel
 {
@@ -24,7 +24,7 @@ namespace Impostor.Hazel
         public int Position { get; internal set; }
 
         public int Length { get; internal set; }
-        
+
         public int BytesRemaining => this.Length - this.Position;
 
         public byte Tag { get; private set; }
@@ -66,6 +66,7 @@ namespace Impostor.Hazel
 
             var reader = _pool.Get();
             reader.Update(Buffer, pos, 0, length, tag, this);
+
             return reader;
         }
 
@@ -87,7 +88,7 @@ namespace Impostor.Hazel
 
             System.Buffer.BlockCopy(Buffer, offsetEnd, Buffer, offsetStart, lengthToCopy);
 
-            ((MessageReader) message).Parent.AdjustLength(message.Offset, message.Length + 3);
+            ((MessageReader)message).Parent.AdjustLength(message.Offset, message.Length + 3);
         }
 
         public void InsertMessage(IMessageReader reader, IMessageWriter writer)
@@ -97,26 +98,31 @@ namespace Impostor.Hazel
 
         private void AdjustLength(int offset, int amount)
         {
-            this.Length -= amount;
-
             if (this.ReadPosition > offset)
             {
                 this.Position -= amount;
             }
 
-            if (Parent != null)
+            this.Length -= amount;
+
+            if (Parent == null)
             {
-                var lengthOffset = this.Offset - 3;
-                var curLen = this.Buffer[lengthOffset] |
-                             (this.Buffer[lengthOffset + 1] << 8);
-
-                curLen -= amount;
-
-                this.Buffer[lengthOffset] = (byte)curLen;
-                this.Buffer[lengthOffset + 1] = (byte)(this.Buffer[lengthOffset + 1] >> 8);
-
-                Parent.AdjustLength(offset, amount);
+                // If there's no parent reference, we're at the top-most message
+                // and this is not a normal Message, as it either contains no data, or it contains
+                // a network reliability header
+                return;
             }
+
+            var lengthOffset = this.Offset - 3;
+            var curLen = this.Buffer[lengthOffset]
+                | (this.Buffer[lengthOffset + 1] << 8);
+
+            curLen -= amount;
+
+            this.Buffer[lengthOffset] = (byte)curLen;
+            this.Buffer[lengthOffset + 1] = (byte)(this.Buffer[lengthOffset + 1] >> 8);
+
+            Parent.AdjustLength(offset, amount);
         }
 
         public void Dispose()
