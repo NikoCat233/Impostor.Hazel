@@ -1,45 +1,48 @@
 using System;
 using System.Net;
 
-namespace Impostor.Hazel.Dtls
+namespace Impostor.Hazel.Dtls;
+
+public struct ConnectionId : IEquatable<ConnectionId>
 {
-    public struct ConnectionId : IEquatable<ConnectionId>
+    public IPEndPoint EndPoint;
+    public int Serial;
+
+    public static ConnectionId Create(IPEndPoint endPoint, int serial)
     {
-        public IPEndPoint EndPoint;
-        public int Serial;
-
-        public static ConnectionId Create(IPEndPoint endPoint, int serial)
+        return new ConnectionId
         {
-            return new ConnectionId
-            {
-                EndPoint = endPoint,
-                Serial = serial,
-            };
-        }
+            EndPoint = endPoint,
+            Serial = serial
+        };
+    }
 
-        public bool Equals(ConnectionId other)
-        {
-            return this.Serial == other.Serial
-                   && this.EndPoint.Equals(other.EndPoint)
-                ;
-        }
+    public bool Equals(ConnectionId other)
+    {
+        return Serial == other.Serial
+               && EndPoint.Equals(other.EndPoint)
+            ;
+    }
 
-        public override bool Equals(object obj)
-        {
-            if (obj is ConnectionId)
-            {
-                return this.Equals((ConnectionId)obj);
-            }
+    public override bool Equals(object obj)
+    {
+        if (obj is ConnectionId) return Equals((ConnectionId)obj);
 
-            return false;
-        }
+        return false;
+    }
 
-        public override int GetHashCode()
-        {
-            ///NOTE(mendsley): We're only hashing the endpoint
-            /// here, as the common case will have one
-            /// connection per address+port tuple.
-            return this.EndPoint.GetHashCode();
-        }
+    public override int GetHashCode()
+    {
+        return EndPoint.GetHashCode();
+    }
+
+    public static bool operator ==(ConnectionId left, ConnectionId right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(ConnectionId left, ConnectionId right)
+    {
+        return !(left == right);
     }
 }

@@ -1,202 +1,168 @@
-using Impostor.Hazel.Crypto;
 using System;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Impostor.Hazel.Crypto;
+using Impostor.Hazel.Dtls.Handshake.Constant;
+using HashAlgorithm = Impostor.Hazel.Dtls.Handshake.Constant.HashAlgorithm;
 
-namespace Impostor.Hazel.Dtls
+namespace Impostor.Hazel.Dtls;
+
+/// <summary>
+///     ECDHE_RSA_*_256 cipher suite
+/// </summary>
+public class X25519EcdheRsaSha256 : IHandshakeCipherSuite
 {
+    private static readonly int ClientMessageSize = 0
+                                                    + 1 + X25519.KeySize // ECPoint ClientKeyExchange.ecdh_Yc
+        ;
+
+    private readonly ByteSpan privateAgreementKey;
+    private SHA256 sha256 = SHA256.Create();
+
     /// <summary>
-    /// ECDHE_RSA_*_256 cipher suite
+    ///     Create a new instance of the x25519 key exchange
     /// </summary>
-    public class X25519EcdheRsaSha256 : IHandshakeCipherSuite
+    /// <param name="random">Random data source</param>
+    public X25519EcdheRsaSha256(RandomNumberGenerator random)
     {
-        private readonly ByteSpan privateAgreementKey;
-        private SHA256 sha256 = SHA256.Create();
+        var buffer = new byte[X25519.KeySize];
+        random.GetBytes(buffer);
+        privateAgreementKey = buffer;
+    }
 
-        /// <summary>
-        /// Create a new instance of the x25519 key exchange
-        /// </summary>
-        /// <param name="random">Random data source</param>
-        public X25519EcdheRsaSha256(RandomNumberGenerator random)
-        {
-            byte[] buffer = new byte[X25519.KeySize];
-            random.GetBytes(buffer);
-            this.privateAgreementKey = buffer;
-        }
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        sha256?.Dispose();
+        sha256 = null;
+    }
 
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            this.sha256?.Dispose();
-            this.sha256 = null;
-        }
+    /// <inheritdoc />
+    public int SharedKeySize()
+    {
+        return X25519.KeySize;
+    }
 
-        /// <inheritdoc />
-        public int SharedKeySize()
-        {
-            return X25519.KeySize;
-        }
+    /// <inheritdoc />
+    public int CalculateServerMessageSize(object privateKey)
+    {
+        if (privateKey is not RSA rsaPrivateKey) throw new ArgumentException("Invalid private key", nameof(privateKey));
 
-        /// <summary>
-        /// Calculate the server message size given an RSA key size
-        /// </summary>
-        /// <param name="keySize">
-        /// Size of the private key (in bits)
-        /// </param>
-        /// <returns>
-        /// Size of the ServerKeyExchange message in bytes
-        /// </returns>
-        private static int CalculateServerMessageSize(int keySize)
-        {
-            int signatureSize = keySize / 8;
+        return CalculateServerMessageSize(rsaPrivateKey.KeySize);
+    }
 
-            return 0
-                + 1 // ECCurveType ServerKeyExchange.params.curve_params.curve_type
-                + 2 // NamedCurve ServerKeyExchange.params.curve_params.namedcurve
-                + 1 + X25519.KeySize // ECPoint ServerKeyExchange.params.public
-                + 1 // HashAlgorithm ServerKeyExchange.algorithm.hash
-                + 1 // SignatureAlgorithm ServerKeyExchange.signed_params.algorithm.signature
-                + 2 // ServerKeyExchange.signed_params.size
-                + signatureSize // ServerKeyExchange.signed_params.opaque
-                ;
-        }
+    /// <inheritdoc />
+    public void EncodeServerKeyExchangeMessage(ByteSpan output, object privateKey)
+    {
+        var rsaPrivateKey = privateKey as RSA;
+        if (rsaPrivateKey == null) throw new ArgumentException("Invalid private key", nameof(privateKey));
 
-        /// <inheritdoc />
-        public int CalculateServerMessageSize(object privateKey)
-        {
-            RSA rsaPrivateKey = privateKey as RSA;
-            if (rsaPrivateKey == null)
-            {
-                throw new ArgumentException("Invalid private key", nameof(privateKey));
-            }
+        output[0] = (byte)ECCurveType.NamedCurve;
+        output.WriteBigEndian16((ushort)NamedCurve.x25519, 1);
+        output[3] = X25519.KeySize;
+        X25519.Func(output.Slice(4, X25519.KeySize), privateAgreementKey);
 
-            return CalculateServerMessageSize(rsaPrivateKey.KeySize);
-        }
+        // Hash the key parameters
+        var paramterDigest = sha256.ComputeHash(output.GetUnderlyingArray(), output.Offset, 4 + X25519.KeySize);
 
-        /// <inheritdoc />
-        public void EncodeServerKeyExchangeMessage(ByteSpan output, object privateKey)
-        {
-            RSA rsaPrivateKey = privateKey as RSA;
-            if (rsaPrivateKey == null)
-            {
-                throw new ArgumentException("Invalid private key", nameof(privateKey));
-            }
+        // Sign the paramter digest
+        var signer = new RSAPKCS1SignatureFormatter(rsaPrivateKey);
+        signer.SetHashAlgorithm("SHA256");
+        ByteSpan signature = signer.CreateSignature(paramterDigest);
 
-            output[0] = (byte)ECCurveType.NamedCurve;
-            output.WriteBigEndian16((ushort)NamedCurve.x25519, 1);
-            output[3] = (byte)X25519.KeySize;
-            X25519.Func(output.Slice(4, X25519.KeySize), this.privateAgreementKey);
+        Debug.Assert(signature.Length == rsaPrivateKey.KeySize / 8);
+        output[4 + X25519.KeySize] = (byte)HashAlgorithm.Sha256;
+        output[5 + X25519.KeySize] = (byte)SignatureAlgorithm.RSA;
+        output[(6 + X25519.KeySize)..].WriteBigEndian16((ushort)signature.Length);
+        signature.CopyTo(output[(8 + X25519.KeySize)..]);
+    }
 
-            // Hash the key parameters
-            byte[] paramterDigest = this.sha256.ComputeHash(output.GetUnderlyingArray(), output.Offset, 4 + X25519.KeySize);
+    /// <inheritdoc />
+    public bool VerifyServerMessageAndGenerateSharedKey(ByteSpan output, ByteSpan serverKeyExchangeMessage,
+        object publicKey)
+    {
+        if (publicKey is not RSA rsaPublicKey) return false;
 
-            // Sign the paramter digest
-            RSAPKCS1SignatureFormatter signer = new RSAPKCS1SignatureFormatter(rsaPrivateKey);
-            signer.SetHashAlgorithm("SHA256");
-            ByteSpan signature = signer.CreateSignature(paramterDigest);
+        if (output.Length != X25519.KeySize) return false;
 
-            Debug.Assert(signature.Length == rsaPrivateKey.KeySize / 8);
-            output[4 + X25519.KeySize] = (byte)HashAlgorithm.Sha256;
-            output[5 + X25519.KeySize] = (byte)SignatureAlgorithm.RSA;
-            output.Slice(6 + X25519.KeySize).WriteBigEndian16((ushort)signature.Length);
-            signature.CopyTo(output.Slice(8 + X25519.KeySize));
-        }
+        // Verify message is compatible with this cipher suite
+        if (serverKeyExchangeMessage.Length != CalculateServerMessageSize(rsaPublicKey.KeySize)) return false;
 
-        /// <inheritdoc />
-        public bool VerifyServerMessageAndGenerateSharedKey(ByteSpan output, ByteSpan serverKeyExchangeMessage, object publicKey)
-        {
-            RSA rsaPublicKey = publicKey as RSA;
-            if (rsaPublicKey == null)
-            {
-                return false;
-            }
-            else if (output.Length != X25519.KeySize)
-            {
-                return false;
-            }
+        if (serverKeyExchangeMessage[0] != (byte)ECCurveType.NamedCurve) return false;
 
-            // Verify message is compatible with this cipher suite
-            if (serverKeyExchangeMessage.Length != CalculateServerMessageSize(rsaPublicKey.KeySize))
-            {
-                return false;
-            }
-            else if (serverKeyExchangeMessage[0] != (byte)ECCurveType.NamedCurve)
-            {
-                return false;
-            }
-            else if (serverKeyExchangeMessage.ReadBigEndian16(1) != (ushort)NamedCurve.x25519)
-            {
-                return false;
-            }
-            else if (serverKeyExchangeMessage[3] != X25519.KeySize)
-            {
-                return false;
-            }
-            else if (serverKeyExchangeMessage[4 + X25519.KeySize] != (byte)HashAlgorithm.Sha256)
-            {
-                return false;
-            }
-            else if (serverKeyExchangeMessage[5 + X25519.KeySize] != (byte)SignatureAlgorithm.RSA)
-            {
-                return false;
-            }
+        if (serverKeyExchangeMessage.ReadBigEndian16(1) != (ushort)NamedCurve.x25519) return false;
 
-            ByteSpan keyParameters = serverKeyExchangeMessage.Slice(0, 4 + X25519.KeySize);
-            ByteSpan othersPublicKey = keyParameters.Slice(4);
-            ushort signatureSize = serverKeyExchangeMessage.ReadBigEndian16(6 + X25519.KeySize);
-            ByteSpan signature = serverKeyExchangeMessage.Slice(4 + keyParameters.Length);
+        if (serverKeyExchangeMessage[3] != X25519.KeySize) return false;
 
-            if (signatureSize != signature.Length)
-            {
-                return false;
-            }
+        if (serverKeyExchangeMessage[4 + X25519.KeySize] != (byte)HashAlgorithm.Sha256) return false;
 
-            // Hash the key parameters
-            byte[] parameterDigest = this.sha256.ComputeHash(keyParameters.GetUnderlyingArray(), keyParameters.Offset, keyParameters.Length);
+        if (serverKeyExchangeMessage[5 + X25519.KeySize] != (byte)SignatureAlgorithm.RSA) return false;
 
-            // Verify the signature
-            RSAPKCS1SignatureDeformatter verifier = new RSAPKCS1SignatureDeformatter(rsaPublicKey);
-            verifier.SetHashAlgorithm("SHA256");
-            if (!verifier.VerifySignature(parameterDigest, signature.ToArray()))
-            {
-                return false;
-            }
+        var keyParameters = serverKeyExchangeMessage[..(4 + X25519.KeySize)];
+        var othersPublicKey = keyParameters[4..];
+        var signatureSize = serverKeyExchangeMessage.ReadBigEndian16(6 + X25519.KeySize);
+        var signature = serverKeyExchangeMessage[(4 + keyParameters.Length)..];
 
-            // Signature has been validated, generate the shared key
-            return X25519.Func(output, this.privateAgreementKey, othersPublicKey);
-        }
+        if (signatureSize != signature.Length) return false;
 
-        private static int ClientMessageSize = 0
-                + 1 + X25519.KeySize // ECPoint ClientKeyExchange.ecdh_Yc
-                ;
+        // Hash the key parameters
+        var parameterDigest =
+            sha256.ComputeHash(keyParameters.GetUnderlyingArray(), keyParameters.Offset, keyParameters.Length);
 
-        /// <inheritdoc />
-        public int CalculateClientMessageSize()
-        {
-            return ClientMessageSize;
-        }
+        // Verify the signature
+        var verifier = new RSAPKCS1SignatureDeformatter(rsaPublicKey);
+        verifier.SetHashAlgorithm("SHA256");
+        if (!verifier.VerifySignature(parameterDigest, signature.ToArray())) return false;
 
-        /// <inheritdoc />
-        public void EncodeClientKeyExchangeMessage(ByteSpan output)
-        {
-            output[0] = (byte)X25519.KeySize;
-            X25519.Func(output.Slice(1, X25519.KeySize), this.privateAgreementKey);
-        }
+        // Signature has been validated, generate the shared key
+        return X25519.Func(output, privateAgreementKey, othersPublicKey);
+    }
 
-        /// <inheritdoc />
-        public bool VerifyClientMessageAndGenerateSharedKey(ByteSpan output, ByteSpan clientKeyExchangeMessage)
-        {
-            if (clientKeyExchangeMessage.Length != ClientMessageSize)
-            {
-                return false;
-            }
-            else if (clientKeyExchangeMessage[0] != (byte)X25519.KeySize)
-            {
-                return false;
-            }
+    /// <inheritdoc />
+    public int CalculateClientMessageSize()
+    {
+        return ClientMessageSize;
+    }
 
-            ByteSpan othersPublicKey = clientKeyExchangeMessage.Slice(1);
-            return X25519.Func(output, this.privateAgreementKey, othersPublicKey);
-        }
+    /// <inheritdoc />
+    public void EncodeClientKeyExchangeMessage(ByteSpan output)
+    {
+        output[0] = X25519.KeySize;
+        X25519.Func(output.Slice(1, X25519.KeySize), privateAgreementKey);
+    }
+
+    /// <inheritdoc />
+    public bool VerifyClientMessageAndGenerateSharedKey(ByteSpan output, ByteSpan clientKeyExchangeMessage)
+    {
+        if (clientKeyExchangeMessage.Length != ClientMessageSize) return false;
+
+        if (clientKeyExchangeMessage[0] != X25519.KeySize) return false;
+
+        var othersPublicKey = clientKeyExchangeMessage[1..];
+        return X25519.Func(output, privateAgreementKey, othersPublicKey);
+    }
+
+    /// <summary>
+    ///     Calculate the server message size given an RSA key size
+    /// </summary>
+    /// <param name="keySize">
+    ///     Size of the private key (in bits)
+    /// </param>
+    /// <returns>
+    ///     Size of the ServerKeyExchange message in bytes
+    /// </returns>
+    private static int CalculateServerMessageSize(int keySize)
+    {
+        var signatureSize = keySize / 8;
+
+        return 0
+               + 1 // ECCurveType ServerKeyExchange.params.curve_params.curve_type
+               + 2 // NamedCurve ServerKeyExchange.params.curve_params.namedcurve
+               + 1 + X25519.KeySize // ECPoint ServerKeyExchange.params.public
+               + 1 // HashAlgorithm ServerKeyExchange.algorithm.hash
+               + 1 // SignatureAlgorithm ServerKeyExchange.signed_params.algorithm.signature
+               + 2 // ServerKeyExchange.signed_params.size
+               + signatureSize // ServerKeyExchange.signed_params.opaque
+            ;
     }
 }
