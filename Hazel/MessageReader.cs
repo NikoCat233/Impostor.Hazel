@@ -120,7 +120,7 @@ namespace Impostor.Hazel
             curLen -= amount;
 
             this.Buffer[lengthOffset] = (byte)curLen;
-            this.Buffer[lengthOffset + 1] = (byte)(this.Buffer[lengthOffset + 1] >> 8);
+            this.Buffer[lengthOffset + 1] = (byte)(curLen >> 8);
 
             Parent.AdjustLength(offset, amount);
         }
