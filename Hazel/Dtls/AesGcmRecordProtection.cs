@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using Impostor.Hazel.Crypto;
+using System.Diagnostics;
 
 namespace Impostor.Hazel.Dtls;
 

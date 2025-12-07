@@ -1,6 +1,6 @@
+using Impostor.Hazel.Crypto;
 using System.Net;
 using System.Security.Cryptography;
-using Impostor.Hazel.Crypto;
 
 namespace Impostor.Hazel.Dtls.Handshake;
 

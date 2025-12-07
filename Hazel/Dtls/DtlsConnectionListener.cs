@@ -1,3 +1,9 @@
+using Impostor.Hazel.Crypto;
+using Impostor.Hazel.Dtls.Handshake;
+using Impostor.Hazel.Dtls.Handshake.Constant;
+using Impostor.Hazel.Udp;
+using Microsoft.Extensions.ObjectPool;
+using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -8,12 +14,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.ObjectPool;
-using Impostor.Hazel.Crypto;
-using Impostor.Hazel.Dtls.Handshake;
-using Impostor.Hazel.Dtls.Handshake.Constant;
-using Impostor.Hazel.Udp;
-using Serilog;
 using Random = Impostor.Hazel.Dtls.Handshake.Constant.Random;
 
 namespace Impostor.Hazel.Dtls;
@@ -786,7 +786,7 @@ public class DtlsConnectionListener : UdpConnectionListener
                 await SendHelloVerifyRequest(peerAddress, outgoingSequence, record.Epoch, recordProtection, peer.ProtocolVersion);
                 return true;
             }
-        
+
         // Client is initiating a brand new connection. We need
         // to destroy the existing connection and establish a
         // new session.
@@ -881,7 +881,7 @@ public class DtlsConnectionListener : UdpConnectionListener
         serverHelloHandshake.FragmentLength = serverHelloHandshake.Length;
 
         var maxCertFragmentSize = peer.Session.Version == 0 ? MaxCertFragmentSizeV0 : MaxCertFragmentSizeV1;
-        
+
         /*var certificateData = encodedCertificate;
         var initialCertPadding = Record.Size + Handshake.Handshake.Size + serverHello.Size + Handshake.Handshake.Size;
         var certInitialFragmentSize = Math.Min(certificateData.Length, maxCertFragmentSize - initialCertPadding);

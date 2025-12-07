@@ -1,8 +1,8 @@
+using Impostor.Hazel.Crypto;
+using Impostor.Hazel.Dtls.Handshake.Constant;
 using System;
 using System.Diagnostics;
 using System.Security.Cryptography;
-using Impostor.Hazel.Crypto;
-using Impostor.Hazel.Dtls.Handshake.Constant;
 using HashAlgorithm = Impostor.Hazel.Dtls.Handshake.Constant.HashAlgorithm;
 
 namespace Impostor.Hazel.Dtls;

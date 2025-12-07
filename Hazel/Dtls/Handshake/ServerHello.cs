@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using Impostor.Hazel.Dtls.Handshake.Constant;
+using System.Diagnostics;
 
 namespace Impostor.Hazel.Dtls.Handshake;
 
