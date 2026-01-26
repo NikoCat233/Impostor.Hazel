@@ -29,5 +29,10 @@
         ///     Message that is part of a larger, fragmented message.
         /// </summary>
         Fragment = 11,
+
+        /// <summary>
+        ///     Message that is used to discover MTU.
+        /// </summary>
+        MtuTest = 13,
     }
 }

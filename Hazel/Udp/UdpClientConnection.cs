@@ -39,7 +39,7 @@ namespace Impostor.Hazel.Udp
 
             _socket = new UdpClient
             {
-                DontFragment = false
+                DontFragment = true
             };
 
             reliablePacketTimer = new Timer(ManageReliablePacketsInternal, null, 100, Timeout.Infinite);
@@ -69,12 +69,12 @@ namespace Impostor.Hazel.Udp
         }
 
         /// <inheritdoc />
-        protected override ValueTask WriteBytesToConnection(byte[] bytes, int length)
+        protected override ValueTask WriteBytesToConnection(byte[] bytes, int length, Action<SocketException> onError = null)
         {
-            return WriteBytesToConnectionReal(bytes, length);
+            return WriteBytesToConnectionReal(bytes, length, onError);
         }
 
-        private async ValueTask WriteBytesToConnectionReal(byte[] bytes, int length)
+        private async ValueTask WriteBytesToConnectionReal(byte[] bytes, int length, Action<SocketException> onError)
         {
             try
             {
@@ -87,6 +87,12 @@ namespace Impostor.Hazel.Udp
             }
             catch (SocketException ex)
             {
+                if (onError != null)
+                {
+                    onError(ex);
+                    return;
+                }
+
                 await DisconnectInternal(HazelInternalErrors.SocketExceptionSend, "Could not send data as a SocketException occurred: " + ex.Message);
             }
         }
@@ -131,6 +137,7 @@ namespace Impostor.Hazel.Udp
             {
                 State = ConnectionState.Connected;
                 InitializeKeepAliveTimer();
+                StartMtuDiscovery();
             });
 
             await _connectWaitLock.WaitAsync(TimeSpan.FromSeconds(10));

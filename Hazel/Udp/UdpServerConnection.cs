@@ -36,12 +36,13 @@ namespace Impostor.Hazel.Udp
 
             State = ConnectionState.Connected;
             this.InitializeKeepAliveTimer();
+            this.StartMtuDiscovery();
         }
 
         /// <inheritdoc />
-        protected override ValueTask WriteBytesToConnection(byte[] bytes, int length)
+        protected override ValueTask WriteBytesToConnection(byte[] bytes, int length, Action<System.Net.Sockets.SocketException> onError = null)
         {
-            return Listener.SendData(bytes, length, EndPoint);
+            return Listener.SendData(bytes, length, EndPoint, onError);
         }
 
         /// <inheritdoc />

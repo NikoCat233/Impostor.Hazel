@@ -2,6 +2,7 @@ using Impostor.Hazel.Abstractions;
 using Microsoft.Extensions.ObjectPool;
 using Serilog;
 using System;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -115,7 +116,7 @@ namespace Impostor.Hazel.Udp
         ///     Writes the given bytes to the connection.
         /// </summary>
         /// <param name="bytes">The bytes to write.</param>
-        protected abstract ValueTask WriteBytesToConnection(byte[] bytes, int length);
+        protected abstract ValueTask WriteBytesToConnection(byte[] bytes, int length, Action<SocketException> onError = null);
 
         /// <inheritdoc/>
         public override async ValueTask SendAsync(IMessageWriter msg)
@@ -123,6 +124,19 @@ namespace Impostor.Hazel.Udp
             if (this._state != ConnectionState.Connected)
                 throw new InvalidOperationException("Could not send data as this Connection is not connected. Did you disconnect?");
 
+            // We handle fragmentation at the application layer for reliable packets.
+            // Unreliable packets must always fit within the MTU.
+            if (msg.SendOption != MessageType.Reliable && msg.Length > this.Mtu)
+            {
+                throw new HazelException("Unreliable messages can't be bigger than MTU");
+            }
+
+            if (msg.SendOption == MessageType.Reliable && msg.Length > this.Mtu)
+            {
+                ResetKeepAliveTimer();
+                await FragmentedSend((byte)MessageType.Reliable, msg.ToByteArray(false));
+                return;
+            }
             byte[] buffer = new byte[msg.Length];
             Buffer.BlockCopy(msg.Buffer, 0, buffer, 0, msg.Length);
 
@@ -148,8 +162,8 @@ namespace Impostor.Hazel.Udp
         ///     <include file="DocInclude/common.xml" path="docs/item[@name='Connection_SendBytes_General']/*" />
         ///     <para>
         ///         Udp connections can currently send messages using <see cref="MessageType.Unreliable"/> and
-        ///         <see cref="MessageType.Reliable"/>. Fragmented messages are not currently supported and will default to
-        ///         <see cref="MessageType.Unreliable"/> until implemented.
+        ///         <see cref="MessageType.Reliable"/>. Reliable messages larger than the connection MTU will be
+        ///         fragmented. Unreliable messages larger than the MTU will throw.
         ///     </para>
         /// </remarks>
         public override async ValueTask SendBytes(byte[] bytes, MessageType sendOption = MessageType.Unreliable)
@@ -167,11 +181,19 @@ namespace Impostor.Hazel.Udp
         /// <returns>The bytes that should actually be sent.</returns>
         protected async ValueTask HandleSend(byte[] data, byte sendOption, Action ackCallback = null)
         {
+            // Fragment large reliable messages.
+            if (sendOption == (byte)MessageType.Reliable && (data.Length + 3) > this.Mtu)
+            {
+                await FragmentedSend(sendOption, data, ackCallback);
+                return;
+            }
+
             switch (sendOption)
             {
                 case (byte)UdpSendOption.Ping:
                 case (byte)MessageType.Reliable:
                 case (byte)UdpSendOption.Hello:
+                case (byte)UdpSendOption.MtuTest:
                     await ReliableSend(sendOption, data, ackCallback);
                     break;
 
@@ -225,6 +247,14 @@ namespace Impostor.Hazel.Udp
                     Statistics.LogHelloReceive(bytesReceived);
                     break;
 
+                case (byte)UdpSendOption.MtuTest:
+                    await MtuTestMessageReceive(message);
+                    break;
+
+                case (byte)UdpSendOption.Fragment:
+                    await FragmentMessageReceive(message, bytesReceived);
+                    break;
+
                 case (byte)UdpSendOption.Disconnect:
                     message.Offset = 1;
                     message.Position = 0;
@@ -258,6 +288,11 @@ namespace Impostor.Hazel.Udp
         /// <param name="length"></param>
         async ValueTask UnreliableSend(byte sendOption, byte[] data, int offset, int length)
         {
+            if (length + 1 > this.Mtu)
+            {
+                throw new HazelException("Unreliable messages can't be bigger than MTU");
+            }
+
             byte[] bytes = new byte[length + 1];
 
             //Add message type

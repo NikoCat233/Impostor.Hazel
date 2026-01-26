@@ -64,7 +64,7 @@ namespace Impostor.Hazel.Udp
 
             try
             {
-                _socket.DontFragment = false;
+                _socket.DontFragment = true;
             }
             catch (SocketException)
             {
@@ -286,7 +286,7 @@ namespace Impostor.Hazel.Udp
         /// </summary>
         /// <param name="bytes">The bytes to send.</param>
         /// <param name="endPoint">The endpoint to send to.</param>
-        internal virtual async ValueTask SendData(byte[] bytes, int length, IPEndPoint endPoint)
+        internal virtual async ValueTask SendData(byte[] bytes, int length, IPEndPoint endPoint, Action<SocketException> onError = null)
         {
             if (length > bytes.Length) return;
 
@@ -298,6 +298,12 @@ namespace Impostor.Hazel.Udp
             }
             catch (SocketException e)
             {
+                if (onError != null)
+                {
+                    onError(e);
+                    return;
+                }
+
                 Logger.Error(e, "Could not send data as a SocketException occurred");
             }
             catch (ObjectDisposedException)
