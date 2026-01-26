@@ -32,15 +32,24 @@ namespace Impostor.Hazel.Udp
         ///     Creates a new UdpClientConnection.
         /// </summary>
         /// <param name="remoteEndPoint">A <see cref="NetworkEndPoint"/> to connect to.</param>
-        public UdpClientConnection(IPEndPoint remoteEndPoint, ObjectPool<MessageReader> readerPool, IPMode ipMode = IPMode.IPv4) : base(null, readerPool)
+        public UdpClientConnection(IPEndPoint remoteEndPoint, ObjectPool<MessageReader> readerPool, IPMode ipMode = IPMode.IPv4, bool enableFragmentation = false)
+            : base(null, readerPool, enableFragmentation)
         {
             this.EndPoint = remoteEndPoint;
             this.IPMode = ipMode;
 
-            _socket = new UdpClient
+            _socket = new UdpClient();
+
+            if (enableFragmentation)
             {
-                DontFragment = true
-            };
+                try
+                {
+                    _socket.DontFragment = true;
+                }
+                catch (SocketException)
+                {
+                }
+            }
 
             reliablePacketTimer = new Timer(ManageReliablePacketsInternal, null, 100, Timeout.Infinite);
             _connectWaitLock = new SemaphoreSlim(0, 1);

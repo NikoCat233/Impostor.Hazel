@@ -19,6 +19,11 @@ namespace Impostor.Hazel.Udp
         private static readonly ILogger Logger = Log.ForContext<UdpConnectionListener>();
 
         /// <summary>
+        /// Whether application-level fragmentation and MTU discovery are enabled for connections created by this listener.
+        /// </summary>
+        public bool FragmentationEnabled { get; }
+
+        /// <summary>
         /// A callback for early connection rejection. 
         /// * Return false to reject connection.
         /// * A null response is ok, we just won't send anything.
@@ -48,10 +53,12 @@ namespace Impostor.Hazel.Udp
         ///     Creates a new UdpConnectionListener for the given <see cref="IPAddress"/>, port and <see cref="IPMode"/>.
         /// </summary>
         /// <param name="endPoint">The endpoint to listen on.</param>
-        public UdpConnectionListener(IPEndPoint endPoint, ObjectPool<MessageReader> readerPool, IPMode ipMode = IPMode.IPv4)
+        public UdpConnectionListener(IPEndPoint endPoint, ObjectPool<MessageReader> readerPool, IPMode ipMode = IPMode.IPv4, bool enableFragmentation = false)
         {
             this.EndPoint = endPoint;
             this.IPMode = ipMode;
+
+            this.FragmentationEnabled = enableFragmentation;
 
             _readerPool = readerPool;
             _socket = new UdpClient(endPoint);
@@ -62,12 +69,15 @@ namespace Impostor.Hazel.Udp
             _detectedBadPackets = false;
             _detectedLeakedConnections = false;
 
-            try
+            if (enableFragmentation)
             {
-                _socket.DontFragment = true;
-            }
-            catch (SocketException)
-            {
+                try
+                {
+                    _socket.DontFragment = true;
+                }
+                catch (SocketException)
+                {
+                }
             }
 
             _reliablePacketTimer = new Timer(ManageReliablePackets, null, 100, Timeout.Infinite);
@@ -265,7 +275,7 @@ namespace Impostor.Hazel.Udp
                 }
 
                 // Create new client
-                client = new UdpServerConnection(this, data.RemoteEndPoint, IPMode, _readerPool);
+                client = new UdpServerConnection(this, data.RemoteEndPoint, IPMode, _readerPool, this.FragmentationEnabled);
 
                 // Store the client
                 if (!_allConnections.TryAdd(data.RemoteEndPoint, client))

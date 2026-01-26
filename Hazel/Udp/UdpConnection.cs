@@ -17,6 +17,12 @@ namespace Impostor.Hazel.Udp
     {
         private static readonly ILogger Logger = Log.ForContext<UdpConnection>();
 
+        /// <summary>
+        /// Whether application-level fragmentation and MTU discovery are enabled for this connection.
+        /// When disabled (default), reliable packets will not be automatically fragmented and MTU discovery will not run.
+        /// </summary>
+        public bool FragmentationEnabled { get; }
+
         public override float AveragePingMs => this._pingMs;
 
         private const int SioUdpConnectionReset = -1744830452;
@@ -31,11 +37,13 @@ namespace Impostor.Hazel.Udp
         private bool _isFirst = true;
         private Task _executingTask;
 
-        protected UdpConnection(ConnectionListener listener, ObjectPool<MessageReader> readerPool)
+        protected UdpConnection(ConnectionListener listener, ObjectPool<MessageReader> readerPool, bool enableFragmentation = false)
         {
             _listener = listener;
             _readerPool = readerPool;
             _stoppingCts = new CancellationTokenSource();
+
+            FragmentationEnabled = enableFragmentation;
 
             Pipeline = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
             {
@@ -124,14 +132,14 @@ namespace Impostor.Hazel.Udp
             if (this._state != ConnectionState.Connected)
                 throw new InvalidOperationException("Could not send data as this Connection is not connected. Did you disconnect?");
 
-            // We handle fragmentation at the application layer for reliable packets.
-            // Unreliable packets must always fit within the MTU.
-            if (msg.SendOption != MessageType.Reliable && msg.Length > this.Mtu)
-            {
-                throw new HazelException("Unreliable messages can't be bigger than MTU");
-            }
+            // Optional application-level fragmentation and MTU discovery.
+            // When enabled, we can fragment large reliable packets. For oversized unreliable packets
+            // we only log a warning and attempt to send without killing the connection.
+            var isOversizeUnreliable = this.FragmentationEnabled
+                && msg.SendOption != MessageType.Reliable
+                && msg.Length > this.Mtu;
 
-            if (msg.SendOption == MessageType.Reliable && msg.Length > this.Mtu)
+            if (this.FragmentationEnabled && msg.SendOption == MessageType.Reliable && msg.Length > this.Mtu)
             {
                 ResetKeepAliveTimer();
                 await FragmentedSend((byte)MessageType.Reliable, msg.ToByteArray(false));
@@ -151,7 +159,15 @@ namespace Impostor.Hazel.Udp
                     break;
 
                 default:
-                    await WriteBytesToConnection(buffer, buffer.Length);
+                    if (isOversizeUnreliable)
+                    {
+                        Logger.Warning("Attempted to send unreliable message of size {Size} which exceeds MTU {Mtu}. The packet may be dropped.", buffer.Length, this.Mtu);
+                        await WriteBytesToConnection(buffer, buffer.Length, _ => { });
+                    }
+                    else
+                    {
+                        await WriteBytesToConnection(buffer, buffer.Length);
+                    }
                     Statistics.LogUnreliableSend(buffer.Length - 1, buffer.Length);
                     break;
             }
@@ -162,8 +178,8 @@ namespace Impostor.Hazel.Udp
         ///     <include file="DocInclude/common.xml" path="docs/item[@name='Connection_SendBytes_General']/*" />
         ///     <para>
         ///         Udp connections can currently send messages using <see cref="MessageType.Unreliable"/> and
-        ///         <see cref="MessageType.Reliable"/>. Reliable messages larger than the connection MTU will be
-        ///         fragmented. Unreliable messages larger than the MTU will throw.
+        ///         <see cref="MessageType.Reliable"/>. When fragmentation is enabled, reliable messages larger than
+        ///         the connection MTU will be fragmented. Oversized unreliable messages will log a warning and may be dropped.
         ///     </para>
         /// </remarks>
         public override async ValueTask SendBytes(byte[] bytes, MessageType sendOption = MessageType.Unreliable)
@@ -182,7 +198,7 @@ namespace Impostor.Hazel.Udp
         protected async ValueTask HandleSend(byte[] data, byte sendOption, Action ackCallback = null)
         {
             // Fragment large reliable messages.
-            if (sendOption == (byte)MessageType.Reliable && (data.Length + 3) > this.Mtu)
+            if (this.FragmentationEnabled && sendOption == (byte)MessageType.Reliable && (data.Length + 3) > this.Mtu)
             {
                 await FragmentedSend(sendOption, data, ackCallback);
                 return;
@@ -248,11 +264,27 @@ namespace Impostor.Hazel.Udp
                     break;
 
                 case (byte)UdpSendOption.MtuTest:
-                    await MtuTestMessageReceive(message);
+                    if (this.FragmentationEnabled)
+                    {
+                        await MtuTestMessageReceive(message);
+                    }
+                    else
+                    {
+                        // Ignore MTU test messages when fragmentation is disabled.
+                        Statistics.LogUnreliableReceive(bytesReceived - 1, bytesReceived);
+                    }
                     break;
 
                 case (byte)UdpSendOption.Fragment:
-                    await FragmentMessageReceive(message, bytesReceived);
+                    if (this.FragmentationEnabled)
+                    {
+                        await FragmentMessageReceive(message, bytesReceived);
+                    }
+                    else
+                    {
+                        // Ignore fragments when fragmentation is disabled.
+                        Statistics.LogUnreliableReceive(bytesReceived - 1, bytesReceived);
+                    }
                     break;
 
                 case (byte)UdpSendOption.Disconnect:
@@ -288,9 +320,10 @@ namespace Impostor.Hazel.Udp
         /// <param name="length"></param>
         async ValueTask UnreliableSend(byte sendOption, byte[] data, int offset, int length)
         {
-            if (length + 1 > this.Mtu)
+            var isOversize = this.FragmentationEnabled && (length + 1 > this.Mtu);
+            if (isOversize)
             {
-                throw new HazelException("Unreliable messages can't be bigger than MTU");
+                Logger.Warning("Attempted to send unreliable message of size {Size} which exceeds MTU {Mtu}. The packet may be dropped.", length + 1, this.Mtu);
             }
 
             byte[] bytes = new byte[length + 1];
@@ -301,8 +334,16 @@ namespace Impostor.Hazel.Udp
             //Copy data into new array
             Buffer.BlockCopy(data, offset, bytes, bytes.Length - length, length);
 
-            //Write to connection
-            await WriteBytesToConnection(bytes, bytes.Length);
+            // Write to connection.
+            if (isOversize)
+            {
+                // Provide an error handler so we don't disconnect on MessageSize errors.
+                await WriteBytesToConnection(bytes, bytes.Length, _ => { });
+            }
+            else
+            {
+                await WriteBytesToConnection(bytes, bytes.Length);
+            }
 
             Statistics.LogUnreliableSend(length, bytes.Length);
         }

@@ -49,6 +49,11 @@ namespace Impostor.Hazel.Udp
 
         protected void StartMtuDiscovery()
         {
+            if (!this.FragmentationEnabled)
+            {
+                return;
+            }
+
             if (_mtuDiscoveryStarted || ForcedMtu.HasValue)
             {
                 return;

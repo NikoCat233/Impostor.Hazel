@@ -27,8 +27,8 @@ namespace Impostor.Hazel.Udp
         /// <param name="listener">The listener that created this connection.</param>
         /// <param name="endPoint">The endpoint that we are connected to.</param>
         /// <param name="IPMode">The IPMode we are connected using.</param>
-        internal UdpServerConnection(UdpConnectionListener listener, IPEndPoint endPoint, IPMode IPMode, ObjectPool<MessageReader> readerPool)
-            : base(listener, readerPool)
+        internal UdpServerConnection(UdpConnectionListener listener, IPEndPoint endPoint, IPMode IPMode, ObjectPool<MessageReader> readerPool, bool enableFragmentation)
+            : base(listener, readerPool, enableFragmentation)
         {
             this.Listener = listener;
             this.EndPoint = endPoint;
