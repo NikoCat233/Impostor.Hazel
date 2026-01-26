@@ -18,10 +18,21 @@ namespace Impostor.Hazel.Udp
         private static readonly ILogger Logger = Log.ForContext<UdpConnection>();
 
         /// <summary>
-        /// Whether application-level fragmentation and MTU discovery are enabled for this connection.
-        /// When disabled (default), reliable packets will not be automatically fragmented and MTU discovery will not run.
+        /// Whether this endpoint supports application-level fragmentation and MTU discovery.
+        /// This is a local capability flag.
         /// </summary>
-        public bool FragmentationEnabled { get; }
+        public bool FragmentationSupported { get; }
+
+        /// <summary>
+        /// Whether application-level fragmentation and MTU discovery are enabled for this connection.
+        /// This is the negotiated result and is only true when both endpoints support it.
+        /// </summary>
+        public bool FragmentationEnabled { get; private set; }
+
+        /// <summary>
+        /// The remote endpoint's hello version byte (capabilities) as observed from its hello.
+        /// </summary>
+        public HazelHelloVersion RemoteHelloVersion { get; private set; } = HazelHelloVersion.Legacy;
 
         public override float AveragePingMs => this._pingMs;
 
@@ -43,13 +54,42 @@ namespace Impostor.Hazel.Udp
             _readerPool = readerPool;
             _stoppingCts = new CancellationTokenSource();
 
-            FragmentationEnabled = enableFragmentation;
+            FragmentationSupported = enableFragmentation;
+
+            // Negotiated later (via hello version exchange). Default to legacy behaviour.
+            FragmentationEnabled = false;
 
             Pipeline = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = true
             });
+        }
+
+        internal void SetRemoteHelloVersion(byte ver)
+        {
+            RemoteHelloVersion = (HazelHelloVersion)ver;
+
+            var wasEnabled = FragmentationEnabled;
+            FragmentationEnabled =
+                FragmentationSupported &&
+                RemoteHelloVersion >= HazelHelloVersion.Fragmentation;
+
+            // Start MTU discovery as soon as fragmentation becomes enabled on a connected socket.
+            if (!wasEnabled && FragmentationEnabled && _state == ConnectionState.Connected)
+            {
+                StartMtuDiscovery();
+            }
+        }
+
+        /// <summary>
+        /// Sends a hello response containing only this endpoint's hello version byte.
+        /// This is used for capability negotiation so that the client can learn the server's capability.
+        /// </summary>
+        internal ValueTask SendHelloResponseAsync()
+        {
+            // Empty payload (only the version byte is sent).
+            return SendHello(null, null);
         }
 
         internal Channel<byte[]> Pipeline { get; }
@@ -231,6 +271,13 @@ namespace Impostor.Hazel.Udp
             {
                 _isFirst = false;
 
+                // Negotiate capabilities using the hello version byte.
+                // Layout: [SendOption(1)][ReliableId(2)][HelloVersion(1)]...
+                if (bytesReceived >= 4 && message.Buffer[0] == (byte)UdpSendOption.Hello)
+                {
+                    SetRemoteHelloVersion(message.Buffer[3]);
+                }
+
                 // Slice 4 bytes to get handshake data.
                 if (_listener != null)
                 {
@@ -259,12 +306,20 @@ namespace Impostor.Hazel.Udp
                     Statistics.LogHelloReceive(bytesReceived);
                     break;
                 case (byte)UdpSendOption.Hello:
+                    // Hello carries the remote capability byte as the first byte of its payload.
+                    // Layout: [SendOption(1)][ReliableId(2)][HelloVersion(1)]...
+                    if (bytesReceived >= 4)
+                    {
+                        SetRemoteHelloVersion(message.Buffer[3]);
+                    }
                     await ProcessReliableReceive(message.Buffer, 1);
                     Statistics.LogHelloReceive(bytesReceived);
                     break;
 
                 case (byte)UdpSendOption.MtuTest:
-                    if (this.FragmentationEnabled)
+                    // We can safely process MTU test messages as long as we support the feature locally.
+                    // (The negotiated flag only gates what we send.)
+                    if (this.FragmentationSupported)
                     {
                         await MtuTestMessageReceive(message);
                     }
@@ -276,7 +331,9 @@ namespace Impostor.Hazel.Udp
                     break;
 
                 case (byte)UdpSendOption.Fragment:
-                    if (this.FragmentationEnabled)
+                    // We can safely process fragments as long as we support the feature locally.
+                    // (The negotiated flag only gates what we send.)
+                    if (this.FragmentationSupported)
                     {
                         await FragmentMessageReceive(message, bytesReceived);
                     }
@@ -380,6 +437,11 @@ namespace Impostor.Hazel.Udp
                 actualBytes = new byte[bytes.Length + 1];
                 Buffer.BlockCopy(bytes, 0, actualBytes, 1, bytes.Length);
             }
+
+            // Write our hello version/capability byte.
+            actualBytes[0] = this.FragmentationSupported
+                ? (byte)HazelHelloVersion.Fragmentation
+                : (byte)HazelHelloVersion.Legacy;
 
             return HandleSend(actualBytes, (byte)UdpSendOption.Hello, acknowledgeCallback);
         }

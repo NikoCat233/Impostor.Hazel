@@ -277,6 +277,16 @@ namespace Impostor.Hazel.Udp
                 // Create new client
                 client = new UdpServerConnection(this, data.RemoteEndPoint, IPMode, _readerPool, this.FragmentationEnabled);
 
+                // Negotiate capabilities using the hello version byte.
+                // Layout: [SendOption(1)][ReliableId(2)][HelloVersion(1)]...
+                if (data.Buffer.Length >= 4)
+                {
+                    client.SetRemoteHelloVersion(data.Buffer[3]);
+                }
+
+                // Send our hello version back so the client can negotiate too.
+                await client.SendHelloResponseAsync();
+
                 // Store the client
                 if (!_allConnections.TryAdd(data.RemoteEndPoint, client))
                 {

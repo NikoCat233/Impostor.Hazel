@@ -75,7 +75,7 @@ public class DtlsConnectionListener : UdpConnectionListener
         await base.SendData(array, array.Length, endPoint);
     }
 
-    internal override async ValueTask SendData(byte[] bytes, int length, IPEndPoint remoteEndPoint)
+    internal override async ValueTask SendData(byte[] bytes, int length, IPEndPoint remoteEndPoint, Action<SocketException> onError = null)
     {
         var span = new ByteSpan(bytes);
 

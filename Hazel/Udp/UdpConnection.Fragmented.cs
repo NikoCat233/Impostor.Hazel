@@ -1,3 +1,4 @@
+using Impostor.Hazel.Abstractions;
 using System;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
@@ -80,14 +81,14 @@ namespace Impostor.Hazel.Udp
             buffer[mtu - 2] = (byte)mtu;
             buffer[mtu - 1] = (byte)(mtu >> 8);
 
-            await WriteBytesToConnection(buffer, buffer.Length, (SocketException _) =>
+            await WriteBytesToConnection(buffer, buffer.Length, async (SocketException _) =>
             {
                 failed = true;
                 CancelReliableMessageId(id);
 
                 if (index == 0)
                 {
-                    _ = DisconnectInternal(HazelInternalErrors.ConnectionDisconnected, "Connection MTU is lower than the minimum");
+                    await DisconnectInternal(HazelInternalErrors.ConnectionDisconnected, "Connection MTU is lower than the minimum");
                 }
             });
         }
@@ -214,7 +215,9 @@ namespace Impostor.Hazel.Udp
                 return;
             }
 
-            var fragmentedMessage = _fragmentedMessagesReceived.GetOrAdd(fragmentedMessageId, _ => new FragmentedMessage(fragmentsCount));
+            FragmentedMessage fragmentedMessage = _fragmentedMessagesReceived.GetOrAdd(fragmentedMessageId, _ => new FragmentedMessage(fragmentsCount));
+            bool isFinished = false;
+            byte[] reconstructedBytes = null;
 
             lock (fragmentedMessage)
             {
@@ -227,14 +230,16 @@ namespace Impostor.Hazel.Udp
                 Buffer.BlockCopy(messageReader.Buffer, messageReader.Offset + messageReader.Position, buffer, 0, fragmentPayloadLen);
                 fragmentedMessage.AddFragment(fragmentId, buffer);
 
-                if (!fragmentedMessage.IsFinished)
+                if (fragmentedMessage.IsFinished)
                 {
-                    return;
+                    reconstructedBytes = fragmentedMessage.Reconstruct();
+                    _fragmentedMessagesReceived.TryRemove(fragmentedMessageId, out _);
+                    isFinished = true;
                 }
+            }
 
-                var reconstructedBytes = fragmentedMessage.Reconstruct();
-                _fragmentedMessagesReceived.TryRemove(fragmentedMessageId, out _);
-
+            if (isFinished && reconstructedBytes != null)
+            {
                 var reconstructed = _readerPool.Get();
                 reconstructed.Update(reconstructedBytes);
 
