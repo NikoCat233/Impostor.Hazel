@@ -285,7 +285,10 @@ namespace Impostor.Hazel.Udp
                 }
 
                 // Send our hello version back so the client can negotiate too.
-                await client.SendHelloResponseAsync();
+                if (this.FragmentationEnabled)
+                {
+                    await client.SendHelloResponseAsync();
+                }
 
                 // Store the client
                 if (!_allConnections.TryAdd(data.RemoteEndPoint, client))
