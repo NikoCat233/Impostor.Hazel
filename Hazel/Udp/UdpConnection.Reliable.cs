@@ -233,7 +233,7 @@ namespace Impostor.Hazel.Udp
                 this,
                 buffer,
                 buffer.Length,
-                ResendTimeout > 0 ? ResendTimeout : (int)Math.Min(_pingMs * this.ResendPingMultiplier, 300),
+                ResendTimeout > 0 ? ResendTimeout : ClampToInt(_pingMs * ResendPingMultiplier, 50, 300),
                 ackCallback);
 
             if (!reliableDataPacketsSent.TryAdd(id, packet))
@@ -425,7 +425,7 @@ namespace Impostor.Hazel.Udp
 
                 lock (PingLock)
                 {
-                    this._pingMs = Math.Max(50, this._pingMs * .7f + rt * .3f);
+                    this._pingMs = this._pingMs * .7f + rt * .3f;
                 }
             }
             else if (this.activePingPackets.TryRemove(id, out PingPacket pingPkt))
@@ -436,7 +436,7 @@ namespace Impostor.Hazel.Udp
 
                 lock (PingLock)
                 {
-                    this._pingMs = Math.Max(50, this._pingMs * .7f + rt * .3f);
+                    this._pingMs = this._pingMs * .7f + rt * .3f;
                 }
             }
         }
