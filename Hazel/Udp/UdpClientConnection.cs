@@ -50,7 +50,17 @@ namespace Impostor.Hazel.Udp
                 {
                 }
             }
-
+            else
+            {
+                try
+                {
+                    _socket.DontFragment = false;
+                }
+                catch (SocketException)
+                {
+                }
+            } 
+            
             reliablePacketTimer = new Timer(ManageReliablePacketsInternal, null, 100, Timeout.Infinite);
             _connectWaitLock = new SemaphoreSlim(0, 1);
 

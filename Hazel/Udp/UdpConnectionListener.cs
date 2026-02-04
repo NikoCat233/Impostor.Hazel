@@ -79,6 +79,14 @@ namespace Impostor.Hazel.Udp
                 {
                 }
             }
+            else
+            {
+                try
+                {
+                    _socket.DontFragment = false;
+                }
+                catch (SocketException) { }
+            }
 
             _reliablePacketTimer = new Timer(ManageReliablePackets, null, 100, Timeout.Infinite);
 
