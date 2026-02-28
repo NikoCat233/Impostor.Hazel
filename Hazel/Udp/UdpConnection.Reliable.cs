@@ -35,7 +35,7 @@ namespace Impostor.Hazel.Udp
         /// A compounding multiplier to back off resend timeout.
         /// Applied to ping before first timeout when ResendTimeout == 0.
         /// </summary>
-        public volatile float ResendPingMultiplier = 2;
+        public volatile float ResendPingMultiplier = 1.2f;
 
         /// <summary>
         ///     Holds the last ID allocated.
@@ -77,7 +77,7 @@ namespace Impostor.Hazel.Udp
         ///     connection will be marked as disconnected and the <see cref="Connection.Disconnected">Disconnected</see> event
         ///     will be invoked.
         /// </remarks>
-        public volatile int DisconnectTimeout = 5000;
+        public volatile int DisconnectTimeout = 7500;
 
         /// <summary>
         ///     Class to hold packet data

@@ -58,7 +58,7 @@ namespace Impostor.Hazel.Udp
                 ResetKeepAliveTimer();
             }
         }
-        private int keepAliveInterval = 1500;
+        private int keepAliveInterval = 1000;
 
         public int MissingPingsUntilDisconnect { get; set; } = 6;
         private volatile int pingsSinceAck = 0;
