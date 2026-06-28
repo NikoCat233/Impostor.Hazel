@@ -357,4 +357,111 @@ public class MessageReaderTests
 
         Assert.Throws<InvalidOperationException>(() => reader.RemoveMessage(readerTwo.ReadMessage()));
     }
+
+    [Fact]
+    public void ReadStringWithInvalidLengthDoesNotAdvancePosition()
+    {
+        var readerPool = CreateReaderPool();
+        var reader = readerPool.Get();
+
+        reader.Update(new byte[] { 5, (byte)'H' });
+
+        Assert.Throws<InvalidDataException>(() => reader.ReadString());
+        Assert.Equal(0, reader.Position);
+        Assert.Equal(5, reader.ReadByte());
+    }
+
+    [Fact]
+    public void ReadBytesAndSizeWithInvalidLengthDoesNotAdvancePosition()
+    {
+        var readerPool = CreateReaderPool();
+        var reader = readerPool.Get();
+
+        reader.Update(new byte[] { 3, 1 });
+
+        Assert.Throws<InvalidDataException>(() => reader.ReadBytesAndSize());
+        Assert.Equal(0, reader.Position);
+        Assert.Equal(3, reader.ReadByte());
+    }
+
+    [Fact]
+    public void ReadMessageWithInvalidLengthDoesNotAdvancePosition()
+    {
+        var readerPool = CreateReaderPool();
+        var reader = readerPool.Get();
+
+        reader.Update(new byte[] { 5, 0, 1, 0xAA });
+
+        Assert.Throws<InvalidDataException>(() => reader.ReadMessage());
+        Assert.Equal(0, reader.Position);
+        Assert.Equal(5, reader.ReadUInt16());
+    }
+
+    [Fact]
+    public void ReadPackedUInt32WithInvalidPayloadDoesNotAdvancePosition()
+    {
+        var readerPool = CreateReaderPool();
+        var reader = readerPool.Get();
+
+        reader.Update(new byte[] { 0x80 });
+
+        Assert.Throws<InvalidDataException>(() => reader.ReadPackedUInt32());
+        Assert.Equal(0, reader.Position);
+        Assert.Equal(0x80, reader.ReadByte());
+    }
+
+    [Fact]
+    public void ReadPackedUInt32WithTooLargePayloadDoesNotAdvancePosition()
+    {
+        var readerPool = CreateReaderPool();
+        var reader = readerPool.Get();
+
+        reader.Update(new byte[] { 0x80, 0x80, 0x80, 0x80, 0x10 });
+
+        Assert.Throws<InvalidDataException>(() => reader.ReadPackedUInt32());
+        Assert.Equal(0, reader.Position);
+        Assert.Equal(0x80, reader.ReadByte());
+    }
+
+    [Fact]
+    public void RemoveMessageWorksAfterInvalidSubMessagePayload()
+    {
+        var msg = new MessageWriter(1024);
+        msg.StartMessage(0);
+
+        msg.StartMessage(1);
+        msg.Write("Before");
+        msg.EndMessage();
+
+        msg.StartMessage(2);
+        msg.Write((byte)10);
+        msg.Write((byte)'X');
+        msg.EndMessage();
+
+        msg.StartMessage(3);
+        msg.Write("After");
+        msg.EndMessage();
+
+        msg.EndMessage();
+
+        var readerPool = CreateReaderPool();
+        var reader = readerPool.Get();
+        reader.Update(msg.Buffer);
+
+        var inner = reader.ReadMessage();
+
+        var before = inner.ReadMessage();
+        Assert.Equal(1, before.Tag);
+        Assert.Equal("Before", before.ReadString());
+
+        var malformed = inner.ReadMessage();
+        Assert.Equal(2, malformed.Tag);
+        Assert.Throws<InvalidDataException>(() => malformed.ReadString());
+
+        inner.RemoveMessage(malformed);
+
+        var after = inner.ReadMessage();
+        Assert.Equal(3, after.Tag);
+        Assert.Equal("After", after.ReadString());
+    }
 }

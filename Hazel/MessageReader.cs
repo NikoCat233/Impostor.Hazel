@@ -2,6 +2,7 @@
 using Microsoft.Extensions.ObjectPool;
 using System;
 using System.Buffers.Binary;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -58,16 +59,27 @@ namespace Impostor.Hazel
 
         public IMessageReader ReadMessage()
         {
-            var length = ReadUInt16();
-            var tag = FastByte();
-            var pos = ReadPosition;
+            var startPosition = Position;
 
-            Position += length;
+            try
+            {
+                var length = ReadUInt16();
+                var tag = FastByte();
+                EnsureBytesAvailable(length);
 
-            var reader = _pool.Get();
-            reader.Update(Buffer, pos, 0, length, tag, this);
+                var pos = ReadPosition;
+                Position += length;
 
-            return reader;
+                var reader = _pool.Get();
+                reader.Update(Buffer, pos, 0, length, tag, this);
+
+                return reader;
+            }
+            catch (Exception ex)
+            {
+                Position = startPosition;
+                throw CreateReadException("message", startPosition, ex);
+            }
         }
 
         public void RemoveMessage(IMessageReader message)
@@ -201,6 +213,8 @@ namespace Impostor.Hazel
 
         public string ReadString(int length)
         {
+            EnsureBytesAvailable(length);
+
             var output = Encoding.UTF8.GetString(Buffer.AsSpan(ReadPosition, length));
             Position += length;
             return output;
@@ -208,17 +222,39 @@ namespace Impostor.Hazel
 
         public string ReadString()
         {
-            return ReadString(ReadPackedInt32());
+            var startPosition = Position;
+
+            try
+            {
+                return ReadString(ReadPackedInt32());
+            }
+            catch (Exception ex)
+            {
+                Position = startPosition;
+                throw CreateReadException("string", startPosition, ex);
+            }
         }
 
         public ReadOnlyMemory<byte> ReadBytesAndSize()
         {
-            var len = ReadPackedInt32();
-            return ReadBytes(len);
+            var startPosition = Position;
+
+            try
+            {
+                var len = ReadPackedInt32();
+                return ReadBytes(len);
+            }
+            catch (Exception ex)
+            {
+                Position = startPosition;
+                throw CreateReadException("bytes with size", startPosition, ex);
+            }
         }
 
         public ReadOnlyMemory<byte> ReadBytes(int length)
         {
+            EnsureBytesAvailable(length);
+
             var output = Buffer.AsMemory(ReadPosition, length);
             Position += length;
             return output;
@@ -231,28 +267,48 @@ namespace Impostor.Hazel
 
         public uint ReadPackedUInt32()
         {
-            bool readMore = true;
-            int shift = 0;
-            uint output = 0;
+            var startPosition = Position;
 
-            while (readMore)
+            try
             {
-                byte b = FastByte();
-                if (b >= 0x80)
+                bool readMore = true;
+                int shift = 0;
+                uint output = 0;
+
+                while (readMore)
                 {
-                    readMore = true;
-                    b ^= 0x80;
-                }
-                else
-                {
-                    readMore = false;
+                    if (shift >= 35)
+                    {
+                        throw new InvalidDataException("Packed UInt32 is too large.");
+                    }
+
+                    byte b = FastByte();
+                    if (b >= 0x80)
+                    {
+                        readMore = true;
+                        b ^= 0x80;
+                    }
+                    else
+                    {
+                        readMore = false;
+                    }
+
+                    if (shift == 28 && b > 0x0F)
+                    {
+                        throw new InvalidDataException("Packed UInt32 is too large.");
+                    }
+
+                    output |= (uint)(b << shift);
+                    shift += 7;
                 }
 
-                output |= (uint)(b << shift);
-                shift += 7;
+                return output;
             }
-
-            return output;
+            catch (Exception ex)
+            {
+                Position = startPosition;
+                throw CreateReadException("packed UInt32", startPosition, ex);
+            }
         }
 
         #endregion
@@ -279,7 +335,28 @@ namespace Impostor.Hazel
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private byte FastByte()
         {
+            EnsureBytesAvailable(sizeof(byte));
             return Buffer[Offset + Position++];
+        }
+
+        private void EnsureBytesAvailable(int length)
+        {
+            if (length < 0)
+            {
+                throw new InvalidDataException($"Read length is negative: {length}");
+            }
+
+            if (BytesRemaining < length)
+            {
+                throw new InvalidDataException($"Read length is longer than message length: {length} of {BytesRemaining}");
+            }
+        }
+
+        private InvalidDataException CreateReadException(string valueName, int startPosition, Exception innerException)
+        {
+            return new InvalidDataException(
+                $"Failed to read {valueName} at position {startPosition}. Reader was restored to position {Position}. Length: {Length}, bytes remaining: {BytesRemaining}.",
+                innerException);
         }
     }
 }
